@@ -96,3 +96,4 @@ else:
 
     # Release the capture once finished
     cap.release()
+
