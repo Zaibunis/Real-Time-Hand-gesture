@@ -15,7 +15,7 @@ cap = cv2.VideoCapture(0)
 # Function to detect peace sign ✌️
 def detect_peace_sign(landmarks):
     """Detects a 'peace sign' (✌️)."""
-    index_finger = landmarks[8]   # (x, y)
+    index_finger = landmarks[8]   
     middle_finger = landmarks[12]
     ring_finger = landmarks[16]
     pinky_finger = landmarks[20]
