@@ -9,12 +9,11 @@ mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
 mp_draw = mp.solutions.drawing_utils
 
-# Start webcam
-cap = cv2.VideoCapture(0)
 
-# Function to detect peace sign ✌️
+
+# Function to detect peace sign ✌
 def detect_peace_sign(landmarks):
-    """Detects a 'peace sign' (✌️)."""
+    """Detects a 'peace sign' (✌)."""
     index_finger = landmarks[8]   
     middle_finger = landmarks[12]
     ring_finger = landmarks[16]
@@ -39,9 +38,9 @@ def detect_thumbs_up(landmarks):
 
     return thumb_extended and fingers_curled
 
-# Function to detect Saranghae (사랑해) ❤️
+# Function to detect Saranghae (사랑해) ❤
 def detect_saranghae(landmarks):
-    """Detects the 'Saranghae' (finger heart ❤️) gesture."""
+    """Detects the 'Saranghae' (finger heart ❤) gesture."""
     thumb_tip = landmarks[4]
     index_tip = landmarks[8]
     middle_finger = landmarks[12]
@@ -58,97 +57,42 @@ def detect_saranghae(landmarks):
 
     return thumb_index_close and middle_curled and ring_curled and pinky_curled
 
-while cap.isOpened():
-    ret, frame = cap.read()
-    if not ret:
-        break
 
-    # Convert BGR to RGB
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = hands.process(frame_rgb)
-
-    # Detect and display gestures
-    if results.multi_hand_landmarks:
-        for hand_landmarks in results.multi_hand_landmarks:
-            mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-            landmarks = {i: (lm.x, lm.y) for i, lm in enumerate(hand_landmarks.landmark)}
-
-            if detect_peace_sign(landmarks):
-                cv2.putText(frame, "Peace ✌️", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
-
-            elif detect_thumbs_up(landmarks):
-                cv2.putText(frame, "Thumbs Up 👍", (50, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 3)
-
-            elif detect_saranghae(landmarks):
-                cv2.putText(frame, "Saranghae ❤️", (50, 200), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 255), 3)
-
-    # Display Output
-    cv2.imshow("Hand Gesture Recognition", frame)
-
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-cap.release()
-cv2.destroyAllWindows()
-
-# Streamlit UI Config
-st.set_page_config(page_title="Hand Gesture Recognition", layout="wide")
-
-# Sidebar Controls
-st.sidebar.title("Hand Gesture Recognition 🖐️")
-st.sidebar.write("Control the real-time hand gesture detection system.")
-
-# Initialize session state for controlling the camera
-if "running" not in st.session_state:
-    st.session_state.running = False
-
-def start_detection():
-    st.session_state.running = True
-
-
-
-# Buttons to start/stop detection
-st.sidebar.button("Start Detection", on_click=start_detection)
-
-
-# Mediapipe Hand Detection Setup
+# Initialize MediaPipe Hands
 mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
 mp_draw = mp.solutions.drawing_utils
-hands = mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
-# Streamlit Main App
-st.title("🤖 Real-Time Hand Gesture Recognition")
-st.write("This app detects hand gestures in real-time using OpenCV and MediaPipe.")
+# Streamlit setup
+st.title("Hand Gesture Recognition")
 
-# Camera Input
-frame_placeholder = st.empty()
-detected_gesture_placeholder = st.empty()
+# Initialize the webcam capture
+cap = cv2.VideoCapture(0)  # This line initializes the webcam feed
 
-# OpenCV Video Capture
-def detect_hand_gestures():
-    cap = cv2.VideoCapture(0)
-    while cap.isOpened() and st.session_state.running:
+# Check if webcam is accessible
+if not cap.isOpened():
+    st.error("Failed to access the webcam. Please check the camera connection or close other applications using the camera.")
+else:
+    # Streamlit empty container for the webcam feed
+    frame_window = st.empty()
+
+    while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             st.error("Failed to capture video.")
             break
-        
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = hands.process(frame)
-        
+
+        # Convert BGR to RGB
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = hands.process(frame_rgb)
+
+        # Detect and display landmarks (hand gestures)
         if results.multi_hand_landmarks:
             for hand_landmarks in results.multi_hand_landmarks:
                 mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-            detected_gesture_placeholder.write("🖐️ Hand Detected!")
-        else:
-            detected_gesture_placeholder.write("No hand detected.")
-        
-        frame_placeholder.image(frame, channels="RGB")
-    
+
+        # Display the frame directly in the Streamlit app
+        frame_window.image(frame, caption="Webcam Feed", channels="BGR", use_container_width=True)
+
+    # Release the capture once finished
     cap.release()
-
-# Run detection when session state is True
-if st.session_state.running:
-    detect_hand_gestures()
-
-
