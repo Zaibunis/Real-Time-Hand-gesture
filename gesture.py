@@ -1,5 +1,8 @@
 import cv2
 import mediapipe as mp
+import streamlit as st
+
+
 
 # Initialize MediaPipe Hands
 mp_hands = mp.solutions.hands
@@ -87,3 +90,65 @@ while cap.isOpened():
 
 cap.release()
 cv2.destroyAllWindows()
+
+# Streamlit UI Config
+st.set_page_config(page_title="Hand Gesture Recognition", layout="wide")
+
+# Sidebar Controls
+st.sidebar.title("Hand Gesture Recognition 🖐️")
+st.sidebar.write("Control the real-time hand gesture detection system.")
+
+# Initialize session state for controlling the camera
+if "running" not in st.session_state:
+    st.session_state.running = False
+
+def start_detection():
+    st.session_state.running = True
+
+
+
+# Buttons to start/stop detection
+st.sidebar.button("Start Detection", on_click=start_detection)
+
+
+# Mediapipe Hand Detection Setup
+mp_hands = mp.solutions.hands
+mp_draw = mp.solutions.drawing_utils
+hands = mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+
+# Streamlit Main App
+st.title("🤖 Real-Time Hand Gesture Recognition")
+st.write("This app detects hand gestures in real-time using OpenCV and MediaPipe.")
+
+# Camera Input
+frame_placeholder = st.empty()
+detected_gesture_placeholder = st.empty()
+
+# OpenCV Video Capture
+def detect_hand_gestures():
+    cap = cv2.VideoCapture(0)
+    while cap.isOpened() and st.session_state.running:
+        ret, frame = cap.read()
+        if not ret:
+            st.error("Failed to capture video.")
+            break
+        
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = hands.process(frame)
+        
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+            detected_gesture_placeholder.write("🖐️ Hand Detected!")
+        else:
+            detected_gesture_placeholder.write("No hand detected.")
+        
+        frame_placeholder.image(frame, channels="RGB")
+    
+    cap.release()
+
+# Run detection when session state is True
+if st.session_state.running:
+    detect_hand_gestures()
+
+
