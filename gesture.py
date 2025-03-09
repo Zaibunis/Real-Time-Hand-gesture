@@ -69,29 +69,25 @@ mp_draw = mp.solutions.drawing_utils
 st.title("Hand Gesture Recognition")
 
 # Initialize the webcam capture
-cap = cv2.VideoCapture(0)  # Try 0 first for default camera
+cap = cv2.VideoCapture(0)
 
 if not cap.isOpened():
     st.error("Failed to access the webcam. Please check the camera connection.")
 else:
-    # Create two columns
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        # Webcam feed container
         frame_window = st.empty()
     
     with col2:
-        # Gesture status container
         st.markdown("### Detected Gestures")
         gesture_status = st.empty()
         
-        # Add instructions
         st.markdown("""
         ### Try these gestures:
-        - ✌️ Peace Sign
-        - 👍 Thumbs Up
-        - ❤️ Saranghae
+        - ✌️ Peace Sign: Index and middle fingers up
+        - 👍 Thumbs Up: Only thumb up
+        - ❤️ Saranghae: Thumb and index finger heart
         """)
 
     while cap.isOpened():
@@ -106,44 +102,79 @@ else:
 
         # Initialize gesture states
         detected_gestures = []
+        height, width = frame.shape[:2]
 
-        # Detect and display landmarks
+        # Process hand landmarks and detect gestures
         if results.multi_hand_landmarks:
             for hand_landmarks in results.multi_hand_landmarks:
-                # Draw landmarks
-                mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+                # Draw landmarks with better visibility
+                mp_draw.draw_landmarks(
+                    frame, 
+                    hand_landmarks, 
+                    mp_hands.HAND_CONNECTIONS,
+                    mp_draw.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=4),
+                    mp_draw.DrawingSpec(color=(0, 0, 255), thickness=2)
+                )
                 
-                # Convert landmarks to list format
+                # Convert landmarks to the format our detection functions expect
                 landmarks = [(lm.x, lm.y) for lm in hand_landmarks.landmark]
                 
-                # Check for gestures
-                if detect_peace_sign(landmarks):
-                    detected_gestures.append("✌️ Peace Sign")
-                    cv2.putText(frame, "Peace Sign!", (10, 30), 
-                              cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                
-                if detect_thumbs_up(landmarks):
-                    detected_gestures.append("👍 Thumbs Up")
-                    cv2.putText(frame, "Thumbs Up!", (10, 60), 
-                              cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                
-                if detect_saranghae(landmarks):
-                    detected_gestures.append("❤️ Saranghae")
-                    cv2.putText(frame, "Saranghae!", (10, 90), 
-                              cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                # Actively check for each gesture
+                try:
+                    # Peace Sign Detection
+                    if detect_peace_sign(landmarks):
+                        detected_gestures.append("✌️ Peace Sign")
+                        cv2.putText(frame, "Peace Sign!", (10, 30), 
+                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                        # Draw visual feedback
+                        index_pos = (int(landmarks[8][0] * width), int(landmarks[8][1] * height))
+                        middle_pos = (int(landmarks[12][0] * width), int(landmarks[12][1] * height))
+                        cv2.circle(frame, index_pos, 8, (0, 255, 0), -1)
+                        cv2.circle(frame, middle_pos, 8, (0, 255, 0), -1)
+                    
+                    # Thumbs Up Detection
+                    if detect_thumbs_up(landmarks):
+                        detected_gestures.append("👍 Thumbs Up")
+                        cv2.putText(frame, "Thumbs Up!", (10, 60), 
+                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                        # Draw visual feedback
+                        thumb_pos = (int(landmarks[4][0] * width), int(landmarks[4][1] * height))
+                        cv2.circle(frame, thumb_pos, 8, (0, 255, 0), -1)
+                    
+                    # Saranghae Detection
+                    if detect_saranghae(landmarks):
+                        detected_gestures.append("❤️ Saranghae")
+                        cv2.putText(frame, "Saranghae!", (10, 90), 
+                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                        # Draw visual feedback
+                        thumb_pos = (int(landmarks[4][0] * width), int(landmarks[4][1] * height))
+                        index_pos = (int(landmarks[8][0] * width), int(landmarks[8][1] * height))
+                        cv2.line(frame, thumb_pos, index_pos, (0, 0, 255), 2)
 
-        # Update gesture status
+                except Exception as e:
+                    st.error(f"Detection error: {str(e)}")
+
+        # Update status with active feedback
         if detected_gestures:
             gesture_text = "\n".join([
                 f"<div style='padding:10px; background-color:#2ecc71; color:white; "
-                f"border-radius:5px; margin:5px;'>{gesture}</div>"
+                f"border-radius:5px; margin:5px; font-size:18px; font-weight:bold;'>"
+                f"Detected: {gesture}</div>"
                 for gesture in detected_gestures
             ])
         else:
-            gesture_text = "<div style='padding:10px; background-color:#95a5a6; color:white; " \
-                         "border-radius:5px; margin:5px;'>No gesture detected</div>"
+            if results.multi_hand_landmarks:
+                gesture_text = "<div style='padding:10px; background-color:#f39c12; color:white; " \
+                             "border-radius:5px; margin:5px;'>Hand detected! Try making a gesture</div>"
+            else:
+                gesture_text = "<div style='padding:10px; background-color:#95a5a6; color:white; " \
+                             "border-radius:5px; margin:5px;'>Show your hand to the camera</div>"
         
         gesture_status.markdown(gesture_text, unsafe_allow_html=True)
+
+        # Add debug info
+        cv2.putText(frame, f"Detected gestures: {len(detected_gestures)}", 
+                    (10, height - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
         # Display the frame
         frame_window.image(frame, channels="BGR", use_container_width=True)
@@ -151,7 +182,7 @@ else:
     # Release the capture once finished
     cap.release()
 
-# Add a stop button
+# Add stop button
 if st.button('Stop'):
     cap.release()
     st.stop()
