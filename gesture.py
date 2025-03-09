@@ -69,7 +69,7 @@ mp_draw = mp.solutions.drawing_utils
 st.title("Hand Gesture Recognition")
 
 # Initialize the webcam capture
-cap = cv2.VideoCapture(1)  # This line initializes the webcam feed
+cap = cv2.VideoCapture(0)  # This line initializes the webcam feed
 
 # Check if webcam is accessible
 if not cap.isOpened():
