@@ -69,23 +69,30 @@ mp_draw = mp.solutions.drawing_utils
 st.title("Hand Gesture Recognition")
 
 # Initialize the webcam capture
-camera_found = False
-for camera_idx in range(2):  # Try indices 0 and 1
-    cap = cv2.VideoCapture(camera_idx)
-    if cap.isOpened():
-        st.success(f"Successfully connected to camera {camera_idx}")
-        camera_found = True
-        break
-    else:
-        st.warning(f"Could not connect to camera {camera_idx}")
+cap = cv2.VideoCapture(0)  # Try 0 first for default camera
 
-if not camera_found:
-    st.error("No cameras found. Please check your camera connection.")
+if not cap.isOpened():
+    st.error("Failed to access the webcam. Please check the camera connection.")
 else:
-    # Streamlit empty container for the webcam feed
-    frame_window = st.empty()
-    # Add status text container
-    status_text = st.empty()
+    # Create two columns
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        # Webcam feed container
+        frame_window = st.empty()
+    
+    with col2:
+        # Gesture status container
+        st.markdown("### Detected Gestures")
+        gesture_status = st.empty()
+        
+        # Add instructions
+        st.markdown("""
+        ### Try these gestures:
+        - ✌️ Peace Sign
+        - 👍 Thumbs Up
+        - ❤️ Saranghae
+        """)
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -97,28 +104,55 @@ else:
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = hands.process(frame_rgb)
 
-        # Detect and display landmarks (hand gestures)
+        # Initialize gesture states
+        detected_gestures = []
+
+        # Detect and display landmarks
         if results.multi_hand_landmarks:
             for hand_landmarks in results.multi_hand_landmarks:
                 # Draw landmarks
                 mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
                 
-                # Convert landmarks to list format for our detection functions
+                # Convert landmarks to list format
                 landmarks = [(lm.x, lm.y) for lm in hand_landmarks.landmark]
                 
                 # Check for gestures
                 if detect_peace_sign(landmarks):
-                    status_text.text("Detected: ✌️ Peace Sign!")
-                elif detect_thumbs_up(landmarks):
-                    status_text.text("Detected: 👍 Thumbs Up!")
-                elif detect_saranghae(landmarks):
-                    status_text.text("Detected: ❤️ Saranghae!")
-                else:
-                    status_text.text("No gesture detected")
+                    detected_gestures.append("✌️ Peace Sign")
+                    cv2.putText(frame, "Peace Sign!", (10, 30), 
+                              cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                
+                if detect_thumbs_up(landmarks):
+                    detected_gestures.append("👍 Thumbs Up")
+                    cv2.putText(frame, "Thumbs Up!", (10, 60), 
+                              cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                
+                if detect_saranghae(landmarks):
+                    detected_gestures.append("❤️ Saranghae")
+                    cv2.putText(frame, "Saranghae!", (10, 90), 
+                              cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-        # Display the frame directly in the Streamlit app
-        frame_window.image(frame, caption="Webcam Feed", channels="BGR", use_container_width=True)
+        # Update gesture status
+        if detected_gestures:
+            gesture_text = "\n".join([
+                f"<div style='padding:10px; background-color:#2ecc71; color:white; "
+                f"border-radius:5px; margin:5px;'>{gesture}</div>"
+                for gesture in detected_gestures
+            ])
+        else:
+            gesture_text = "<div style='padding:10px; background-color:#95a5a6; color:white; " \
+                         "border-radius:5px; margin:5px;'>No gesture detected</div>"
+        
+        gesture_status.markdown(gesture_text, unsafe_allow_html=True)
+
+        # Display the frame
+        frame_window.image(frame, channels="BGR", use_container_width=True)
 
     # Release the capture once finished
     cap.release()
+
+# Add a stop button
+if st.button('Stop'):
+    cap.release()
+    st.stop()
 
