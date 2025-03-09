@@ -62,60 +62,113 @@ def detect_saranghae(landmarks):
 
 
 
-# Streamlit setup
-st.title("Hand Gesture Recognition")
+# Streamlit setup with better UI
+st.set_page_config(page_title="Hand Gesture Recognition", layout="wide")
 
-# Initialize the webcam capture
-camera_found = False
-for camera_idx in range(2):  # Try indices 0 and 1
-    cap = cv2.VideoCapture(camera_idx)
-    if cap.isOpened():
-        st.success(f"Successfully connected to camera {camera_idx}")
-        camera_found = True
-        break
+# Add custom CSS
+# ... (keep existing CSS) ...
+
+st.markdown("<h1 class='title'>✨ Hand Gesture Recognition ✨</h1>", unsafe_allow_html=True)
+
+# Create columns for layout
+col1, col2 = st.columns([3, 1])
+
+with col2:
+    st.markdown("### Gesture Status")
+    peace_status = st.empty()
+    thumbs_status = st.empty()
+    heart_status = st.empty()
+    
+    st.markdown("### Instructions")
+    st.markdown("""
+    Try these gestures:
+    - ✌️ Peace Sign
+    - 👍 Thumbs Up
+    - ❤️ Saranghae (Finger Heart)
+    """)
+
+with col1:
+    # Try multiple camera indices
+    camera_found = False
+    for i in range(-1, 3):  # Try indices -1, 0, 1, 2
+        try:
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                camera_found = True
+                st.success(f"Successfully connected to camera {i}")
+                break
+        except Exception as e:
+            continue
+
+    if not camera_found:
+        st.error("No camera found. Please check your camera connection and permissions.")
+        st.info("If you're running this on Streamlit Cloud, please note that camera access might be restricted.")
     else:
-        st.warning(f"Could not connect to camera {camera_idx}")
+        frame_window = st.empty()
+        try:
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    st.error("Failed to capture video frame.")
+                    break
 
-if not camera_found:
-    st.error("No cameras found. Please check your camera connection.")
-else:
-    # Streamlit empty container for the webcam feed
-    frame_window = st.empty()
-    # Add status text container
-    status_text = st.empty()
+                try:
+                    # Convert BGR to RGB
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    results = hands.process(frame_rgb)
 
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            st.error("Failed to capture video.")
-            break
+                    # Detect and display landmarks
+                    detected_peace = False
+                    detected_thumbs = False
+                    detected_heart = False
 
-        # Convert BGR to RGB
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = hands.process(frame_rgb)
+                    if results.multi_hand_landmarks:
+                        for hand_landmarks in results.multi_hand_landmarks:
+                            mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+                            
+                            # Convert landmarks to list format
+                            landmarks = [(lm.x, lm.y) for lm in hand_landmarks.landmark]
+                            
+                            # Check for gestures
+                            detected_peace = detect_peace_sign(landmarks)
+                            detected_thumbs = detect_thumbs_up(landmarks)
+                            detected_heart = detect_saranghae(landmarks)
 
-        # Detect and display landmarks (hand gestures)
-        if results.multi_hand_landmarks:
-            for hand_landmarks in results.multi_hand_landmarks:
-                # Draw landmarks
-                mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-                
-                # Convert landmarks to list format for our detection functions
-                landmarks = [(lm.x, lm.y) for lm in hand_landmarks.landmark]
-                
-                # Check for gestures
-                if detect_peace_sign(landmarks):
-                    status_text.text("Detected: ✌️ Peace Sign!")
-                elif detect_thumbs_up(landmarks):
-                    status_text.text("Detected: 👍 Thumbs Up!")
-                elif detect_saranghae(landmarks):
-                    status_text.text("Detected: ❤️ Saranghae!")
-                else:
-                    status_text.text("No gesture detected")
+                    # Update gesture status boxes
+                    peace_status.markdown(
+                        f"<div class='gesture-box {'detected' if detected_peace else 'not-detected'}'>"
+                        f"✌️ Peace Sign: {'Detected!' if detected_peace else 'Not Detected'}</div>", 
+                        unsafe_allow_html=True
+                    )
+                    thumbs_status.markdown(
+                        f"<div class='gesture-box {'detected' if detected_thumbs else 'not-detected'}'>"
+                        f"👍 Thumbs Up: {'Detected!' if detected_thumbs else 'Not Detected'}</div>", 
+                        unsafe_allow_html=True
+                    )
+                    heart_status.markdown(
+                        f"<div class='gesture-box {'detected' if detected_heart else 'not-detected'}'>"
+                        f"❤️ Saranghae: {'Detected!' if detected_heart else 'Not Detected'}</div>", 
+                        unsafe_allow_html=True
+                    )
 
-        # Display the frame directly in the Streamlit app
-        frame_window.image(frame, caption="Webcam Feed", channels="BGR", use_container_width=True)
+                    # Display the frame
+                    frame_window.image(frame, channels="BGR", use_container_width=True)
 
-    # Release the capture once finished
-    cap.release()
+                except Exception as e:
+                    st.error(f"Error processing frame: {str(e)}")
+                    break
+
+        except Exception as e:
+            st.error(f"Error in main loop: {str(e)}")
+        
+        finally:
+            cap.release()
+
+# Add note about Streamlit Cloud
+st.markdown("""
+---
+**Note:** This application requires camera access. If you're running this on Streamlit Cloud, 
+you might experience limited functionality due to platform restrictions. For best results, 
+run this application locally using `streamlit run gesture.py`
+""")
 
