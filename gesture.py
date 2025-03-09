@@ -60,23 +60,29 @@ def detect_saranghae(landmarks):
     return thumb_index_close and middle_curled and ring_curled and pinky_curled
 
 
-# Initialize MediaPipe Hands
-mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
-mp_draw = mp.solutions.drawing_utils
+
 
 # Streamlit setup
 st.title("Hand Gesture Recognition")
 
 # Initialize the webcam capture
-cap = cv2.VideoCapture(0)  # This line initializes the webcam feed
+camera_found = False
+for camera_idx in range(2):  # Try indices 0 and 1
+    cap = cv2.VideoCapture(camera_idx)
+    if cap.isOpened():
+        st.success(f"Successfully connected to camera {camera_idx}")
+        camera_found = True
+        break
+    else:
+        st.warning(f"Could not connect to camera {camera_idx}")
 
-# Check if webcam is accessible
-if not cap.isOpened():
-    st.error("Failed to access the webcam. Please check the camera connection or close other applications using the camera.")
+if not camera_found:
+    st.error("No cameras found. Please check your camera connection.")
 else:
     # Streamlit empty container for the webcam feed
     frame_window = st.empty()
+    # Add status text container
+    status_text = st.empty()
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -91,7 +97,21 @@ else:
         # Detect and display landmarks (hand gestures)
         if results.multi_hand_landmarks:
             for hand_landmarks in results.multi_hand_landmarks:
+                # Draw landmarks
                 mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+                
+                # Convert landmarks to list format for our detection functions
+                landmarks = [(lm.x, lm.y) for lm in hand_landmarks.landmark]
+                
+                # Check for gestures
+                if detect_peace_sign(landmarks):
+                    status_text.text("Detected: ✌️ Peace Sign!")
+                elif detect_thumbs_up(landmarks):
+                    status_text.text("Detected: 👍 Thumbs Up!")
+                elif detect_saranghae(landmarks):
+                    status_text.text("Detected: ❤️ Saranghae!")
+                else:
+                    status_text.text("No gesture detected")
 
         # Display the frame directly in the Streamlit app
         frame_window.image(frame, caption="Webcam Feed", channels="BGR", use_container_width=True)
