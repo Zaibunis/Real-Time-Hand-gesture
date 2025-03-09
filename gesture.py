@@ -3,6 +3,12 @@
 import cv2
 import mediapipe as mp
 import streamlit as st
+from PIL import Image
+import numpy as np
+import io
+import tempfile
+import os
+import time
 
 
 
@@ -66,9 +72,43 @@ def detect_saranghae(landmarks):
 st.set_page_config(page_title="Hand Gesture Recognition", layout="wide")
 
 # Add custom CSS
-# ... (keep existing CSS) ...
+st.markdown("""
+    <style>
+    .title {
+        text-align: center;
+        color: #2c3e50;
+        padding: 20px;
+    }
+    .gesture-box {
+        padding: 10px;
+        border-radius: 5px;
+        margin: 5px;
+        text-align: center;
+    }
+    .detected {
+        background-color: #2ecc71;
+        color: white;
+    }
+    .not-detected {
+        background-color: #95a5a6;
+        color: white;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        padding: 0px 24px;
+        background-color: #f0f2f6;
+        border-radius: 5px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 st.markdown("<h1 class='title'>✨ Hand Gesture Recognition ✨</h1>", unsafe_allow_html=True)
+
+# Create tabs for different input methods
+tab1, tab2 = st.tabs(["📷 Webcam", "📤 Upload Image/Video"])
 
 # Create columns for layout
 col1, col2 = st.columns([3, 1])
@@ -87,88 +127,108 @@ with col2:
     - ❤️ Saranghae (Finger Heart)
     """)
 
+def process_frame(frame):
+    """Process a single frame and return detected gestures"""
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    results = hands.process(frame_rgb)
+    
+    detected_peace = False
+    detected_thumbs = False
+    detected_heart = False
+    
+    if results.multi_hand_landmarks:
+        for hand_landmarks in results.multi_hand_landmarks:
+            mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+            landmarks = [(lm.x, lm.y) for lm in hand_landmarks.landmark]
+            
+            detected_peace = detect_peace_sign(landmarks)
+            detected_thumbs = detect_thumbs_up(landmarks)
+            detected_heart = detect_saranghae(landmarks)
+    
+    return frame, detected_peace, detected_thumbs, detected_heart
+
+def update_gesture_status(peace, thumbs, heart):
+    """Update the gesture status displays"""
+    peace_status.markdown(
+        f"<div class='gesture-box {'detected' if peace else 'not-detected'}'>"
+        f"✌️ Peace Sign: {'Detected!' if peace else 'Not Detected'}</div>", 
+        unsafe_allow_html=True
+    )
+    thumbs_status.markdown(
+        f"<div class='gesture-box {'detected' if thumbs else 'not-detected'}'>"
+        f"👍 Thumbs Up: {'Detected!' if thumbs else 'Not Detected'}</div>", 
+        unsafe_allow_html=True
+    )
+    heart_status.markdown(
+        f"<div class='gesture-box {'detected' if heart else 'not-detected'}'>"
+        f"❤️ Saranghae: {'Detected!' if heart else 'Not Detected'}</div>", 
+        unsafe_allow_html=True
+    )
+
 with col1:
-    # Try multiple camera indices
-    camera_found = False
-    for i in range(-1, 3):  # Try indices -1, 0, 1, 2
+    with tab1:
+        # Webcam Implementation
         try:
-            cap = cv2.VideoCapture(i)
-            if cap.isOpened():
-                camera_found = True
-                st.success(f"Successfully connected to camera {i}")
-                break
-        except Exception as e:
-            continue
+            cap = cv2.VideoCapture(0)
+            if not cap.isOpened():
+                st.error("No webcam found. Try uploading an image or video instead.")
+            else:
+                frame_window = st.empty()
+                while cap.isOpened():
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
 
-    if not camera_found:
-        st.error("No camera found. Please check your camera connection and permissions.")
-        st.info("If you're running this on Streamlit Cloud, please note that camera access might be restricted.")
-    else:
-        frame_window = st.empty()
-        try:
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    st.error("Failed to capture video frame.")
-                    break
-
-                try:
-                    # Convert BGR to RGB
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    results = hands.process(frame_rgb)
-
-                    # Detect and display landmarks
-                    detected_peace = False
-                    detected_thumbs = False
-                    detected_heart = False
-
-                    if results.multi_hand_landmarks:
-                        for hand_landmarks in results.multi_hand_landmarks:
-                            mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-                            
-                            # Convert landmarks to list format
-                            landmarks = [(lm.x, lm.y) for lm in hand_landmarks.landmark]
-                            
-                            # Check for gestures
-                            detected_peace = detect_peace_sign(landmarks)
-                            detected_thumbs = detect_thumbs_up(landmarks)
-                            detected_heart = detect_saranghae(landmarks)
-
-                    # Update gesture status boxes
-                    peace_status.markdown(
-                        f"<div class='gesture-box {'detected' if detected_peace else 'not-detected'}'>"
-                        f"✌️ Peace Sign: {'Detected!' if detected_peace else 'Not Detected'}</div>", 
-                        unsafe_allow_html=True
-                    )
-                    thumbs_status.markdown(
-                        f"<div class='gesture-box {'detected' if detected_thumbs else 'not-detected'}'>"
-                        f"👍 Thumbs Up: {'Detected!' if detected_thumbs else 'Not Detected'}</div>", 
-                        unsafe_allow_html=True
-                    )
-                    heart_status.markdown(
-                        f"<div class='gesture-box {'detected' if detected_heart else 'not-detected'}'>"
-                        f"❤️ Saranghae: {'Detected!' if detected_heart else 'Not Detected'}</div>", 
-                        unsafe_allow_html=True
-                    )
-
-                    # Display the frame
+                    frame, peace, thumbs, heart = process_frame(frame)
+                    update_gesture_status(peace, thumbs, heart)
                     frame_window.image(frame, channels="BGR", use_container_width=True)
 
-                except Exception as e:
-                    st.error(f"Error processing frame: {str(e)}")
-                    break
-
         except Exception as e:
-            st.error(f"Error in main loop: {str(e)}")
-        
+            st.error(f"Error accessing webcam: {str(e)}")
         finally:
-            cap.release()
+            if 'cap' in locals():
+                cap.release()
 
-# Add note about Streamlit Cloud
+    with tab2:
+        # File upload implementation
+        upload_type = st.radio("Choose upload type:", ["Image", "Video"])
+        
+        if upload_type == "Image":
+            uploaded_file = st.file_uploader("Choose an image...", type=['jpg', 'jpeg', 'png'])
+            if uploaded_file is not None:
+                file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+                frame = cv2.imdecode(file_bytes, 1)
+                frame, peace, thumbs, heart = process_frame(frame)
+                update_gesture_status(peace, thumbs, heart)
+                st.image(frame, channels="BGR", use_container_width=True)
+        
+        else:  # Video
+            uploaded_file = st.file_uploader("Choose a video...", type=['mp4', 'avi', 'mov'])
+            if uploaded_file is not None:
+                tfile = tempfile.NamedTemporaryFile(delete=False)
+                tfile.write(uploaded_file.read())
+                
+                cap = cv2.VideoCapture(tfile.name)
+                frame_window = st.empty()
+                
+                while cap.isOpened():
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                        
+                    frame, peace, thumbs, heart = process_frame(frame)
+                    update_gesture_status(peace, thumbs, heart)
+                    frame_window.image(frame, channels="BGR", use_container_width=True)
+                    time.sleep(0.1)  # Add small delay to make video playback smoother
+                
+                cap.release()
+                os.unlink(tfile.name)
+
 st.markdown("""
 ---
-**Note:** This application requires camera access. If you're running this on Streamlit Cloud, 
-you might experience limited functionality due to platform restrictions. For best results, 
-run this application locally using `streamlit run gesture.py`
+**Note:** 
+- Webcam access might be limited on Streamlit Cloud
+- For best results with webcam, run locally using `streamlit run gesture.py`
+- Image and video upload features work on both local and cloud deployments
 """)
 
